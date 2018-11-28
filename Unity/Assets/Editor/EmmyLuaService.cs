@@ -63,10 +63,6 @@ public class EmmyLuaService
 
 	private static void WriteString(BinaryWriter writer, string value)
 	{
-		if (value == "UnityEngine.AndroidJavaObject")
-		{
-			Debug.Log(value);
-		}
 		var encoding = Encoding.UTF8;
 		var chars = encoding.GetBytes(value);
 		writer.Write(chars.Length);
@@ -75,6 +71,7 @@ public class EmmyLuaService
 
 	private static void SendData(Socket client)
 	{
+		
 		var buf = new MemoryStream();
 		var writer = new BinaryWriter(buf);
 		writer.Seek(4, SeekOrigin.Begin);
@@ -82,13 +79,23 @@ public class EmmyLuaService
 		foreach (var type in types)
 		{
 			var fullName = type.FullName;
-			if (fullName != null)
+			if (!string.IsNullOrEmpty(fullName))
 			{
-				Debug.Log(fullName);
+				// full name
 				WriteString(writer, fullName);
 				
+				// base type full name
+				{
+					string baseTypeFullName = null;
+					if (type.BaseType != null)
+						baseTypeFullName = type.BaseType.FullName;
+					writer.Write(baseTypeFullName != null);
+					if (baseTypeFullName != null)
+						WriteString(writer, baseTypeFullName);
+				}
+				
 				// fields
-				var fields = type.GetFields();
+				var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 				writer.Write(fields.Length);
 				foreach (var fi in fields)
 				{
@@ -97,12 +104,38 @@ public class EmmyLuaService
 				}
 
 				// properties
-				var properties = type.GetProperties();
+				var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 				writer.Write(properties.Length);
 				foreach (var pi in properties)
 				{
 					WriteString(writer, pi.Name);
 					WriteString(writer, pi.PropertyType.FullName ?? "any");
+				}
+				
+				// methods
+				var methods =
+					(from mi in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+					where !mi.Name.StartsWith("get_") && !mi.Name.StartsWith("set_")
+					select mi).ToArray();
+				
+				writer.Write(methods.Count());
+				foreach (var mi in methods)
+				{
+					// name
+					WriteString(writer, mi.Name);
+					
+					// parameters
+					var parameterInfos = mi.GetParameters();
+					writer.Write(parameterInfos.Length);
+					foreach (var pi in parameterInfos)
+					{
+						WriteString(writer, pi.Name);
+						WriteString(writer, pi.ParameterType.FullName ?? "any");
+					}
+					
+					// returns
+					var ret = mi.ReturnType;
+					WriteString(writer, ret.FullName ?? "any");
 				}
 			}
 		}

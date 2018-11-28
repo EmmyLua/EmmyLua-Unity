@@ -25,17 +25,12 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.impl.light.LightElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.Processor
+import com.intellij.util.containers.ContainerUtil
 import com.tang.intellij.lua.lang.LuaLanguage
-import com.tang.intellij.lua.psi.LuaClass
-import com.tang.intellij.lua.psi.LuaClassField
-import com.tang.intellij.lua.psi.LuaClassMember
-import com.tang.intellij.lua.psi.Visibility
+import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
-import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.ITyClass
-import com.tang.intellij.lua.ty.TyClass
-import com.tang.intellij.lua.ty.createSerializedClass
+import com.tang.intellij.lua.ty.*
 import java.io.DataInputStream
 import java.io.InputStream
 import java.net.InetSocketAddress
@@ -53,15 +48,37 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         }
     }
 
+    companion object {
+        private val typeMap = mapOf(
+                "System.String" to "string",
+                "System.Boolean" to "boolean",
+                "System.Single" to "number",
+                "System.Double" to "number",
+                "System.Int16" to "number",
+                "System.Int32" to "number",
+                "System.Int64" to "number",
+                "System.SByte" to "number",
+                "System.UInt16" to "number",
+                "System.UInt32" to "number",
+                "System.UInt64" to "number",
+                "System.Void" to "void"
+        )
+
+        private fun convertType(type: String): String {
+            return typeMap[type] ?: type
+        }
+    }
+
     private fun DataInputStream.readMyUTF8(): String {
         val len = readMySize()
         val bytes = ByteArray(len)
         read(bytes)
-        val string = String(bytes, Charset.defaultCharset())
-        if (string == "UnityEngine.AndroidJavaObject") {
-            println(string)
-        }
-        return string
+        return String(bytes, Charset.defaultCharset())
+    }
+
+    private fun DataInputStream.readType(): ITy {
+        val type = readMyUTF8()
+        return Ty.create(convertType(type))
     }
 
     private fun InputStream.readMySize(): Int {
@@ -85,8 +102,18 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         val dataInputStream = DataInputStream(stream)
         while (dataInputStream.available() > 0) {
             val fullName = dataInputStream.readMyUTF8()
-            println(fullName)
-            val aClass = UnityClass(fullName, mgr)
+            if (fullName.isEmpty())
+                break
+
+            val hasBaseType = dataInputStream.readBoolean()
+            var baseTypeFullName: String? = null
+            if (hasBaseType) {
+                baseTypeFullName = dataInputStream.readMyUTF8()
+            }
+
+            println("class $fullName extends $baseTypeFullName")
+
+            val aClass = UnityClass(fullName, baseTypeFullName, mgr)
             classList.add(aClass)
             classMap[fullName] = aClass
 
@@ -95,16 +122,35 @@ class UnityShortNamesManager : LuaShortNamesManager() {
             for (i in 0 until fieldsCount) {
                 val name = dataInputStream.readMyUTF8()
                 val type = dataInputStream.readMyUTF8()
-                aClass.addMember(name, type)
-                println(">>> $name - $type")
+                aClass.addMember(name, convertType(type))
+                //println(">>> $name - $type")
             }
             // field list
             val properties = dataInputStream.readMySize()
             for (i in 0 until properties) {
                 val name = dataInputStream.readMyUTF8()
                 val type = dataInputStream.readMyUTF8()
-                aClass.addMember(name, type)
-                println(">>> $name - $type")
+                aClass.addMember(name, convertType(type))
+            }
+            // methods
+            val methodCount = dataInputStream.readMySize()
+            for (i in 0 until methodCount) {
+                val paramList = mutableListOf<LuaParamInfo>()
+
+                // name
+                val name = dataInputStream.readMyUTF8()
+                // parameters
+                val parameterCount = dataInputStream.readMySize()
+                for (j in 0 until parameterCount) {
+                    val pName = dataInputStream.readMyUTF8()
+                    val pType = dataInputStream.readType()
+                    paramList.add(LuaParamInfo(pName, pType))
+                }
+                // ret
+                val retType = dataInputStream.readType()
+
+                val ty = TySerializedFunction(FunSignature(true, retType, null, paramList.toTypedArray()), emptyArray())
+                aClass.addMember(name, ty)
             }
         }
     }
@@ -136,15 +182,33 @@ class UnityShortNamesManager : LuaShortNamesManager() {
             return clazz.members
         return mutableListOf()
     }
+
+    private fun processAllMembers(type: String, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>, deep: Boolean = true): Boolean {
+        val clazz = classMap[type] ?: return true
+        val continueProcess = ContainerUtil.process(clazz.members.filter { it.name == fieldName }, processor)
+        if (!continueProcess)
+            return false
+
+        val baseType = clazz.baseClassName
+        if (deep && baseType != null) {
+            return processAllMembers(baseType, fieldName, context, processor, deep)
+        }
+
+        return true
+    }
+
+    override fun processAllMembers(type: ITyClass, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>) {
+        processAllMembers(type.className, fieldName, context, processor)
+    }
 }
 
-private class UnityClassMember(val fieldName: String, val type: String, val parent: UnityClass, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClassField {
+private class UnityClassMember(val fieldName: String, val type: ITy, val parent: UnityClass, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClassField {
     override fun toString(): String {
         return fieldName
     }
 
     override fun guessType(context: SearchContext): ITy {
-        return createSerializedClass(type)
+        return type
     }
 
     override fun setName(name: String): PsiElement {
@@ -163,7 +227,7 @@ private class UnityClassMember(val fieldName: String, val type: String, val pare
         get() = false
 }
 
-private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.name) {
+private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.name, clazz.name, clazz.baseClassName) {
     override fun findMemberType(name: String, searchContext: SearchContext): ITy? {
         return clazz.findMember(name)?.guessType(searchContext)
     }
@@ -173,7 +237,7 @@ private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.name) {
     }
 }
 
-private class UnityClass(val className: String, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClass {
+private class UnityClass(val className: String, val baseClassName: String?, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClass {
     private val ty:ITyClass by lazy { TyUnityClass(this) }
 
     val members = mutableListOf<LuaClassMember>()
@@ -191,8 +255,13 @@ private class UnityClass(val className: String, mg: PsiManager) : LightElement(m
         return className
     }
 
-    fun addMember(name: String, type: String) {
+    fun addMember(name: String, type: ITy) {
         val member = UnityClassMember(name, type, this, manager)
+        members.add(member)
+    }
+
+    fun addMember(name: String, type: String) {
+        val member = UnityClassMember(name, Ty.create(type), this, manager)
         members.add(member)
     }
 
