@@ -9,6 +9,5 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="EmmyLua-1.2.6-IDEA182" level="project" />
   </component>
 </module>
