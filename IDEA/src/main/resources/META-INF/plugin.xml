@@ -1,0 +1,26 @@
+<idea-plugin>
+  <id>com.tang.emmylua.unity</id>
+  <name>EmmyLua-Unity</name>
+  <version>1.0.0</version>
+  <vendor email="love.tangzx@qq.com">tangzx</vendor>
+
+  <description><![CDATA[]]></description>
+
+  <change-notes><![CDATA[]]></change-notes>
+
+  <idea-version since-build="173.0"/>
+
+  <depends>com.intellij.modules.lang</depends>
+  <depends>com.tang</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+  </extensions>
+
+  <extensions defaultExtensionNs="com.tang.intellij.lua">
+      <luaShortNamesManager implementation="com.tang.intellij.lua.unity.UnityShortNamesManager"/>
+  </extensions>
+
+  <actions>
+  </actions>
+
+</idea-plugin>
