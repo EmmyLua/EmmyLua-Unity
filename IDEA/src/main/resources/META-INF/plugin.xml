@@ -1,26 +1,33 @@
 <idea-plugin>
-  <id>com.tang.emmylua.unity</id>
-  <name>EmmyLua-Unity</name>
-  <version>1.0.0</version>
-  <vendor email="love.tangzx@qq.com">tangzx</vendor>
+    <id>com.tang.emmylua.unity</id>
+    <name>EmmyLua-Unity</name>
+    <version>1.0.0</version>
+    <vendor email="love.tangzx@qq.com">tangzx</vendor>
 
-  <description><![CDATA[]]></description>
+    <description><![CDATA[]]></description>
 
-  <change-notes><![CDATA[]]></change-notes>
+    <change-notes><![CDATA[]]></change-notes>
 
-  <idea-version since-build="173.0"/>
+    <idea-version since-build="173.0"/>
 
-  <depends>com.intellij.modules.lang</depends>
-  <depends>com.tang</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.tang</depends>
 
-  <extensions defaultExtensionNs="com.intellij">
-  </extensions>
+    <extensions defaultExtensionNs="com.intellij">
+        <programRunner implementation="com.tang.intellij.lua.debugger.unity.LuaUnityDebuggerRunner"/>
+        <configurationType implementation="com.tang.intellij.lua.debugger.unity.LuaUnityConfigurationType"/>
 
-  <extensions defaultExtensionNs="com.tang.intellij.lua">
-      <luaShortNamesManager implementation="com.tang.intellij.lua.unity.UnityShortNamesManager"/>
-  </extensions>
+        <library.type implementation="com.tang.intellij.lua.unity.library.LuaNetLibraryType"/>
+        <virtualFileSystem implementationClass="com.tang.intellij.lua.unity.vfs.NetFileSystem" key="dll"/>
+        <iconProvider implementation="com.tang.intellij.lua.unity.NetDirectoryIconProvider" order="before javaDirectory"/>
+    </extensions>
 
-  <actions>
-  </actions>
+    <extensions defaultExtensionNs="com.tang.intellij.lua">
+        <luaTypeInfer implementation="com.tang.intellij.lua.unity.ty.UnityTypeInfer"/>
+        <luaShortNamesManager implementation="com.tang.intellij.lua.unity.UnityShortNamesManager"/>
+    </extensions>
+
+    <actions>
+    </actions>
 
 </idea-plugin>
