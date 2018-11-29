@@ -39,6 +39,11 @@ import java.nio.charset.Charset
 
 class UnityShortNamesManager : LuaShortNamesManager() {
 
+    enum class TypeKind {
+        Class,
+        Array,
+    }
+
     private val classList = mutableListOf<UnityClass>()
     private val classMap = mutableMapOf<String, UnityClass>()
 
@@ -77,8 +82,17 @@ class UnityShortNamesManager : LuaShortNamesManager() {
     }
 
     private fun DataInputStream.readType(): ITy {
-        val type = readMyUTF8()
-        return Ty.create(convertType(type))
+        val kind = readByte().toInt()
+        return when (kind) {
+            TypeKind.Array.ordinal -> { // array
+                val base = readType()
+                TyArray(base)
+            }
+            else -> {
+                val type = readMyUTF8()
+                Ty.create(convertType(type))
+            }
+        }
     }
 
     private fun InputStream.readMySize(): Int {
@@ -111,7 +125,7 @@ class UnityShortNamesManager : LuaShortNamesManager() {
                 baseTypeFullName = dataInputStream.readMyUTF8()
             }
 
-            println("class $fullName extends $baseTypeFullName")
+            // println("class $fullName extends $baseTypeFullName")
 
             val aClass = UnityClass(fullName, baseTypeFullName, mgr)
             classList.add(aClass)
@@ -121,16 +135,16 @@ class UnityShortNamesManager : LuaShortNamesManager() {
             val fieldsCount = dataInputStream.readMySize()
             for (i in 0 until fieldsCount) {
                 val name = dataInputStream.readMyUTF8()
-                val type = dataInputStream.readMyUTF8()
-                aClass.addMember(name, convertType(type))
+                val type = dataInputStream.readType()
+                aClass.addMember(name, type)
                 //println(">>> $name - $type")
             }
             // field list
             val properties = dataInputStream.readMySize()
             for (i in 0 until properties) {
                 val name = dataInputStream.readMyUTF8()
-                val type = dataInputStream.readMyUTF8()
-                aClass.addMember(name, convertType(type))
+                val type = dataInputStream.readType()
+                aClass.addMember(name, type)
             }
             // methods
             val methodCount = dataInputStream.readMySize()
