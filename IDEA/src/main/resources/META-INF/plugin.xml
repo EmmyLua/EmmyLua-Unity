@@ -24,7 +24,7 @@
 
     <extensions defaultExtensionNs="com.tang.intellij.lua">
         <luaTypeInfer implementation="com.tang.intellij.lua.unity.ty.UnityTypeInfer"/>
-        <luaShortNamesManager implementation="com.tang.intellij.lua.unity.UnityShortNamesManager"/>
+        <luaShortNamesManager implementation="com.tang.intellij.lua.unity.UnityShortNamesManager" order="last"/>
     </extensions>
 
     <actions>

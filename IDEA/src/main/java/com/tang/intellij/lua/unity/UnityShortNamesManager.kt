@@ -168,12 +168,16 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         return clazz.findMember(fieldName)
     }
 
-    override fun processAllClassNames(project: Project, processor: Processor<String>) {
-        classList.forEach { processor.process(it.className) }
+    override fun processAllClassNames(project: Project, processor: Processor<String>): Boolean {
+        for (clazz in classList) {
+            if (!processor.process(clazz.className))
+                return false
+        }
+        return true
     }
 
-    override fun processClassesWithName(name: String, project: Project, scope: GlobalSearchScope, processor: Processor<LuaClass>) {
-        findClass(name, project, scope)?.let { processor.process(it) }
+    override fun processClassesWithName(name: String, project: Project, scope: GlobalSearchScope, processor: Processor<LuaClass>): Boolean {
+        return findClass(name, project, scope)?.let { processor.process(it) } ?: true
     }
 
     override fun getClassMembers(clazzName: String, project: Project, scope: GlobalSearchScope): MutableCollection<LuaClassMember> {
@@ -197,8 +201,8 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         return true
     }
 
-    override fun processAllMembers(type: ITyClass, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>) {
-        processAllMembers(type.className, fieldName, context, processor)
+    override fun processAllMembers(type: ITyClass, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>): Boolean {
+        return processAllMembers(type.className, fieldName, context, processor)
     }
 }
 
