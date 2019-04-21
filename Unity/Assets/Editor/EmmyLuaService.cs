@@ -243,7 +243,7 @@ namespace EmmyLua
 
 				// fields
 				var fields =
-					type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+					type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
 				writer.Write(fields.Length);
 				foreach (var fi in fields)
 				{
@@ -253,7 +253,7 @@ namespace EmmyLua
 
 				// properties
 				var properties =
-					type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+					type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static| BindingFlags.DeclaredOnly);
 				writer.Write(properties.Length);
 				foreach (var pi in properties)
 				{
@@ -263,8 +263,7 @@ namespace EmmyLua
 
 				// methods
 				var methods =
-					(from mi in type.GetMethods(BindingFlags.Public | BindingFlags.Instance |
-					                            BindingFlags.DeclaredOnly)
+					(from mi in type.GetMethods(BindingFlags.Public | BindingFlags.Instance| BindingFlags.Static | BindingFlags.DeclaredOnly)
 						where !mi.Name.StartsWith("get_") && !mi.Name.StartsWith("set_")
 						select mi).ToArray();
 
@@ -273,6 +272,9 @@ namespace EmmyLua
 				{
 					// name
 					WriteString(writer, mi.Name);
+					
+					// is static
+					writer.Write(mi.IsStatic);
 
 					// parameters
 					var parameterInfos = mi.GetParameters();
