@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.tang.intellij.lua.unity
+package com.tang.intellij.lua.unity.ty
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -47,7 +47,10 @@ class UnityShortNamesManager : LuaShortNamesManager() {
     }
 
     private val classList = mutableListOf<UnityClass>()
-    private val classMap = mutableMapOf<String, UnityClass>()
+    private val classMap = mutableMapOf<String, NsMember>()
+    private val nsList = mutableListOf<Namespace>()
+    private val nsMap = mutableMapOf<String, Namespace>()
+    private var rootNS: Namespace? = null
 
     init {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -109,7 +112,7 @@ class UnityShortNamesManager : LuaShortNamesManager() {
 
     private fun createSocket() {
         val server = ServerSocketChannel.open()
-        server.bind(InetSocketAddress(9988))
+        server.bind(InetSocketAddress(996))
         while (true) {
             val client = server.accept()
             val stream = client.socket().getInputStream()
@@ -121,6 +124,7 @@ class UnityShortNamesManager : LuaShortNamesManager() {
 
     private fun processClient(stream: InputStream) {
         try {
+            println("-- connected")
             while (true) {
                 val streamSize = stream.readSize()
                 val proto = stream.readSize()
@@ -134,8 +138,9 @@ class UnityShortNamesManager : LuaShortNamesManager() {
                     // pin
                 }
             }
-        } catch (e: EOFException) {
-            // socket closed
+        } catch (e: Exception) {
+            println("-- closed")
+            onClose()
         }
     }
 
@@ -144,6 +149,7 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         val mgr = PsiManager.getInstance(project)
         val dataInputStream = DataInputStream(stream)
         reset()
+        rootNS = Namespace("root", null, mgr, false)
         while (dataInputStream.available() > 0) {
             val fullName = dataInputStream.readUTF8()
             if (fullName.isEmpty())
@@ -155,11 +161,8 @@ class UnityShortNamesManager : LuaShortNamesManager() {
                 baseTypeFullName = dataInputStream.readUTF8()
             }
 
-            // println("class $fullName extends $baseTypeFullName")
-
-            val aClass = UnityClass(fullName, baseTypeFullName, mgr)
-            classList.add(aClass)
-            classMap[fullName] = aClass
+            //println("class $fullName extends $baseTypeFullName")
+            val aClass = createType(fullName, baseTypeFullName, mgr)
 
             // field list
             val fieldsCount = dataInputStream.readSize()
@@ -183,6 +186,8 @@ class UnityShortNamesManager : LuaShortNamesManager() {
 
                 // name
                 val name = dataInputStream.readUTF8()
+                val isStatic = dataInputStream.readBoolean()
+
                 // parameters
                 val parameterCount = dataInputStream.readSize()
                 for (j in 0 until parameterCount) {
@@ -193,33 +198,61 @@ class UnityShortNamesManager : LuaShortNamesManager() {
                 // ret
                 val retType = dataInputStream.readType()
 
-                val ty = TySerializedFunction(FunSignature(true, retType, null, paramList.toTypedArray()), emptyArray())
+                val ty = TySerializedFunction(FunSignature(!isStatic, retType, null, paramList.toTypedArray()), emptyArray())
                 aClass.addMember(name, ty)
             }
         }
     }
 
+    private fun createType(type: String, baseType: String?, mgr: PsiManager): UnityClass {
+        val nsParts = type.split('.')
+        var prev: Namespace? = rootNS
+        for (i in 0 until nsParts.size - 1) {
+            val ns = nsParts[i]
+            prev = prev?.getOrPut(ns)
+            if (prev != null)
+                classMap[prev.fullName] = prev
+        }
+
+        //class
+        val aClass = UnityClass(nsParts.last(), type, baseType, prev, mgr)
+        classList.add(aClass)
+        classMap[type] = aClass
+        prev?.addMember(aClass)
+
+        return aClass
+    }
+
+    private fun onClose() {
+        reset()
+    }
+
     private fun reset() {
+        rootNS = null
         classMap.clear()
         classList.clear()
     }
 
-    override fun findClass(name: String, context: SearchContext): LuaClass? {
+    private fun findClass(name: String): NsMember? {
         return classMap[name]
+    }
+
+    override fun findClass(name: String, context: SearchContext): LuaClass? {
+        return findClass(name)
     }
 
     override fun findClass(name: String, project: Project, scope: GlobalSearchScope): LuaClass? {
-        return classMap[name]
+        return findClass(name)
     }
 
     override fun findMember(type: ITyClass, fieldName: String, context: SearchContext): LuaClassMember? {
-        val clazz = classMap[type.className] ?: return null
+        val clazz = findClass(type.className) ?: return null
         return clazz.findMember(fieldName)
     }
 
     override fun processAllClassNames(project: Project, processor: Processor<String>): Boolean {
         for (clazz in classList) {
-            if (!processor.process(clazz.className))
+            if (!processor.process(clazz.fullName))
                 return false
         }
         return true
@@ -229,22 +262,28 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         return findClass(name, project, scope)?.let { processor.process(it) } ?: true
     }
 
+    private fun isRoot(type: String): Boolean {
+        return type == "_G" || type == "CS" || type == "\$CS"
+    }
+
     override fun getClassMembers(clazzName: String, project: Project, scope: GlobalSearchScope): MutableCollection<LuaClassMember> {
-        val clazz = classMap[clazzName]
+        val clazz = if (isRoot(clazzName)) rootNS else findClass(clazzName)
         if (clazz != null)
             return clazz.members
         return mutableListOf()
     }
 
     private fun processAllMembers(type: String, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>, deep: Boolean = true): Boolean {
-        val clazz = classMap[type] ?: return true
+        val clazz = (if (isRoot(type)) rootNS else findClass(type)) ?: return true
         val continueProcess = ContainerUtil.process(clazz.members.filter { it.name == fieldName }, processor)
         if (!continueProcess)
             return false
 
-        val baseType = clazz.baseClassName
-        if (deep && baseType != null) {
-            return processAllMembers(baseType, fieldName, context, processor, deep)
+        if (clazz is UnityClass) {
+            val baseType = clazz.baseClassName
+            if (deep && baseType != null) {
+                return processAllMembers(baseType, fieldName, context, processor, deep)
+            }
         }
 
         return true
@@ -255,7 +294,13 @@ class UnityShortNamesManager : LuaShortNamesManager() {
     }
 }
 
-private class UnityClassMember(val fieldName: String, val type: ITy, val parent: UnityClass, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClassField {
+private class UnityClassMember(
+        val fieldName: String,
+        val type: ITy,
+        val parent: UnityClass,
+        mg: PsiManager
+) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClassField {
+
     override fun toString(): String {
         return fieldName
     }
@@ -280,7 +325,7 @@ private class UnityClassMember(val fieldName: String, val type: ITy, val parent:
         get() = false
 }
 
-private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.name, clazz.name, clazz.baseClassName) {
+private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.fullName, clazz.name, clazz.baseClassName) {
     override fun findMemberType(name: String, searchContext: SearchContext): ITy? {
         return clazz.findMember(name)?.guessType(searchContext)
     }
@@ -290,35 +335,117 @@ private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.name, clazz.na
     }
 }
 
-private class UnityClass(val className: String, val baseClassName: String?, mg: PsiManager) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClass {
-    private val ty:ITyClass by lazy { TyUnityClass(this) }
+private class UnityClass(
+        className: String,
+        val fullName: String,
+        val baseClassName: String?,
+        parent: Namespace?,
+        mg: PsiManager
+) : NsMember(className, parent, mg) {
 
-    val members = mutableListOf<LuaClassMember>()
+    private val ty:ITyClass by lazy { TyUnityClass(this) }
 
     override val type: ITyClass
         get() = ty
 
-    override fun setName(name: String): PsiElement {
-        return this
-    }
-
-    override fun getName() = className
-
     override fun toString(): String {
-        return className
+        return fullName
     }
 
     fun addMember(name: String, type: ITy) {
         val member = UnityClassMember(name, type, this, manager)
         members.add(member)
     }
+}
 
-    fun addMember(name: String, type: String) {
-        val member = UnityClassMember(name, Ty.create(type), this, manager)
-        members.add(member)
+private abstract class NsMember(
+        val memberName: String,
+        val parent: Namespace?,
+        mg: PsiManager
+) : LightElement(mg, LuaLanguage.INSTANCE), PsiNamedElement, LuaClass, LuaClassField {
+
+    val members = mutableListOf<LuaClassMember>()
+
+    override fun setName(name: String): PsiElement {
+        return this
+    }
+
+    override fun getName(): String {
+        return memberName
+    }
+
+    override fun guessType(context: SearchContext?): ITy {
+        return type
+    }
+
+    override fun guessParentType(context: SearchContext): ITy {
+        return parent?.type ?: Ty.UNKNOWN
+    }
+
+    fun getMember(name: String): LuaClassMember? {
+        return members.firstOrNull { it.name == name }
     }
 
     fun findMember(name: String): LuaClassMember? {
         return members.firstOrNull { it.name == name }
+    }
+
+    override val visibility: Visibility
+        get() = Visibility.PUBLIC
+    override val isDeprecated: Boolean
+        get() = false
+}
+
+private class NamespaceType(val namespace: Namespace) : TyClass(namespace.fullName) {
+    override fun findMemberType(name: String, searchContext: SearchContext): ITy? {
+        return namespace.getMember(name)?.guessType(searchContext)
+    }
+
+    override fun findMember(name: String, searchContext: SearchContext): LuaClassMember? {
+        return namespace.getMember(name)
+    }
+
+    override val displayName: String
+        get() = namespace.toString()
+}
+
+private class Namespace(
+        val typeName: String,
+        parent: Namespace?,
+        mg: PsiManager,
+        val isValidate: Boolean
+) : NsMember(typeName, parent, mg), LuaClass, LuaClassField {
+
+    private val myType by lazy { NamespaceType(this) }
+    private val myMembers = mutableMapOf<String, Namespace>()
+    private val myClasses = mutableListOf<UnityClass>()
+
+    val fullName: String get() {
+        return if (parent == null || !parent.isValidate) typeName else "${parent.fullName}.$typeName"
+    }
+
+    fun addMember(ns: String): Namespace {
+        val member = Namespace(ns, this, myManager, true)
+        myMembers[ns] = member
+        members.add(member)
+        return member
+    }
+
+    fun addMember(clazz: UnityClass) {
+        myClasses.add(clazz)
+        members.add(clazz)
+    }
+
+    fun getOrPut(ns: String): Namespace {
+        val m = myMembers[ns]
+        if (m != null) return m
+        return addMember(ns)
+    }
+
+    override val type: ITyClass
+        get() = myType
+
+    override fun toString(): String {
+        return "namespace: $fullName"
     }
 }
