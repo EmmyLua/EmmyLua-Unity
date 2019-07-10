@@ -67,14 +67,14 @@ class LuaUnityConfiguration(project: Project, factory: ConfigurationFactory)
     @Throws(WriteExternalException::class)
     override fun writeExternal(element: Element) {
         super.writeExternal(element)
-        JDOMExternalizerUtil.writeField(element, "PreferedUnityInstanceName", preferredUnityInstanceName)
+        JDOMExternalizerUtil.writeField(element, "PreferredUnityInstanceName", preferredUnityInstanceName)
     }
 
     @Throws(InvalidDataException::class)
     override fun readExternal(element: Element) {
         super.readExternal(element)
-        val preferedUnityInstanceName = JDOMExternalizerUtil.readField(element, "PreferedUnityInstanceName")
-        if (preferedUnityInstanceName != null)
-            this.preferredUnityInstanceName = preferedUnityInstanceName
+        val preferredUnityInstanceName = JDOMExternalizerUtil.readField(element, "PreferredUnityInstanceName")
+        if (preferredUnityInstanceName != null)
+            this.preferredUnityInstanceName = preferredUnityInstanceName
     }
 }

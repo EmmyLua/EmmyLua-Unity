@@ -21,7 +21,7 @@ import com.intellij.xdebugger.XDebugSession
 import com.tang.intellij.lua.debugger.attach.LuaAttachBridge
 import com.tang.intellij.lua.debugger.attach.LuaAttachBridgeBase
 import com.tang.intellij.lua.debugger.attach.LuaAttachDebugProcessBase
-import com.tang.intellij.lua.debugger.utils.ProcessUtils
+import com.tang.intellij.lua.debugger.utils.listProcesses
 
 /**
  *
@@ -33,7 +33,7 @@ class LuaUnityDebugProcess internal constructor(session: XDebugSession, private 
     private fun queryUnityProcess(): ProcessInfo? {
         val list = UnityProcessDiscovery.getAttachableProcesses(GetProcessOptions.All)
         if (list.isNotEmpty()) {
-            val processMap = ProcessUtils.listProcesses()
+            val processMap = listProcesses()
             for (processInfo in list) {
                 processMap[processInfo.pid]?.run {
                     if (title.contains(configuration.preferredUnityInstanceName, false)) {
@@ -52,7 +52,7 @@ class LuaUnityDebugProcess internal constructor(session: XDebugSession, private 
         val processInfo = queryUnityProcess()
         if (processInfo == null) {
             if (configuration.preferredUnityInstanceName.isNotEmpty())
-                error("Cannot find suitable Unity instance for prefered instance name: ${configuration.preferredUnityInstanceName}")
+                error("Cannot find suitable Unity instance for preferred instance name: ${configuration.preferredUnityInstanceName}")
             else
                 error("Cannot find suitable Unity instance")
             session.stop()

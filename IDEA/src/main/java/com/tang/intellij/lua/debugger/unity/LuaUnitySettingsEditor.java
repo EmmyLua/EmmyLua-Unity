@@ -16,33 +16,33 @@
 
 package com.tang.intellij.lua.debugger.unity;
 
-import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SettingsEditor;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+
 /**
  *
  * Created by Taigacon on 2018/11/6.
  */
 public class LuaUnitySettingsEditor extends SettingsEditor<LuaUnityConfiguration> {
-    private JTextField preferedUnityInstanceName;
+    private JTextField preferredUnityInstanceName;
     private JPanel myPanel;
 
     @Override
     protected void resetEditorFrom(@NotNull LuaUnityConfiguration luaUnityConfiguration) {
-        preferedUnityInstanceName.setText(String.valueOf(luaUnityConfiguration.getPreferredUnityInstanceName()));
+        preferredUnityInstanceName.setText(luaUnityConfiguration.getPreferredUnityInstanceName());
     }
 
     @Override
-    protected void applyEditorTo(@NotNull LuaUnityConfiguration luaUnityConfiguration) throws ConfigurationException {
-        luaUnityConfiguration.setPreferredUnityInstanceName(preferedUnityInstanceName.getText());
+    protected void applyEditorTo(@NotNull LuaUnityConfiguration luaUnityConfiguration) {
+        luaUnityConfiguration.setPreferredUnityInstanceName(preferredUnityInstanceName.getText());
     }
 
     @NotNull
     @Override
     protected JComponent createEditor() {
-        preferedUnityInstanceName.addActionListener(e -> LuaUnitySettingsEditor.this.fireEditorStateChanged());
+        preferredUnityInstanceName.addActionListener(e -> LuaUnitySettingsEditor.this.fireEditorStateChanged());
         return myPanel;
     }
 }

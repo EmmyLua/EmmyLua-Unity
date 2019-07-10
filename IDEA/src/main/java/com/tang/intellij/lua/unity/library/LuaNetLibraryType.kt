@@ -54,7 +54,7 @@ class LuaNetLibraryType : LibraryType<DummyLibraryProperties>(LuaNetLibraryKind.
 
     override fun createPropertiesEditor(editorComponent: LibraryEditorComponent<DummyLibraryProperties>): LibraryPropertiesEditor? = null
 
-    override fun getCreateActionName() = "Lua .Net Library"
+    override fun getCreateActionName() = "Lua Net Library"
 
     override fun getIcon(properties: DummyLibraryProperties?): Icon = LuaIcons.UNITY
 }

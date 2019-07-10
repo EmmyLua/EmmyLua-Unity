@@ -18,12 +18,10 @@ package com.tang.intellij.lua.unity.ty
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.impl.light.LightElement
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.Processor
 import com.intellij.util.containers.ContainerUtil
 import com.tang.intellij.lua.lang.LuaLanguage
@@ -31,32 +29,28 @@ import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.*
+import com.tang.intellij.lua.unity.UnitySettings
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.InputStream
 import java.net.InetSocketAddress
+import java.nio.channels.AsynchronousCloseException
 import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 import java.nio.charset.Charset
 
-class UnityShortNamesManager : LuaShortNamesManager() {
-
+abstract class UnityShortNamesManagerBase : LuaShortNamesManager() {
     enum class TypeKind {
         Class,
         Array,
     }
 
-    private val classList = mutableListOf<UnityClass>()
-    private val classMap = mutableMapOf<String, NsMember>()
-    private val nsList = mutableListOf<Namespace>()
-    private val nsMap = mutableMapOf<String, Namespace>()
-    private var rootNS: Namespace? = null
-
-    init {
-        ApplicationManager.getApplication().executeOnPooledThread {
-            createSocket()
-        }
-    }
+    private val myClassList = mutableListOf<UnityClass>()
+    private val myClassMap = mutableMapOf<String, NsMember>()
+    private var myRootNS: Namespace? = null
+    private var myClient: SocketChannel? = null
+    private var myServer: ServerSocketChannel? = null
 
     companion object {
         private val typeMap = mapOf(
@@ -79,6 +73,8 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         }
     }
 
+    protected abstract val project: Project
+
     private fun DataInputStream.readUTF8(): String {
         val len = readSize()
         val bytes = ByteArray(len)
@@ -87,8 +83,7 @@ class UnityShortNamesManager : LuaShortNamesManager() {
     }
 
     private fun DataInputStream.readType(): ITy {
-        val kind = readByte().toInt()
-        return when (kind) {
+        return when (readByte().toInt()) {
             TypeKind.Array.ordinal -> { // array
                 val base = readType()
                 TyArray(base)
@@ -110,21 +105,31 @@ class UnityShortNamesManager : LuaShortNamesManager() {
         return (ch1 shl 0) + (ch2 shl 8) + (ch3 shl 16) + (ch4 shl 24)
     }
 
-    private fun createSocket() {
+    protected fun createSocket() {
         val server = ServerSocketChannel.open()
-        server.bind(InetSocketAddress(996))
+        server.bind(InetSocketAddress(UnitySettings.getInstance().port))
+        myServer = server
         while (true) {
-            val client = server.accept()
-            val stream = client.socket().getInputStream()
-            ApplicationManager.getApplication().executeOnPooledThread {
-                processClient(stream)
+            try {
+                val client = server.accept()
+                if (this.myClient != null) {
+                    client.close() // only one client
+                    continue
+                }
+                val stream = client.socket().getInputStream()
+                this.myClient = client
+                ApplicationManager.getApplication().executeOnPooledThread {
+                    processClient(stream)
+                }
+            } catch (e: AsynchronousCloseException) {
+                break
             }
         }
     }
 
     private fun processClient(stream: InputStream) {
         try {
-            println("-- connected")
+            // println("-- connected")
             while (true) {
                 val streamSize = stream.readSize()
                 val proto = stream.readSize()
@@ -134,22 +139,21 @@ class UnityShortNamesManager : LuaShortNamesManager() {
                     while (read < bytes.size)
                         read += stream.read(bytes, read, bytes.size - read)
                     parseLib(ByteArrayInputStream(bytes))
+                    onParseLibrary()
                 } else if (proto == 1) {
                     // pin
                 }
             }
         } catch (e: Exception) {
-            println("-- closed")
             onClose()
         }
     }
 
     private fun parseLib(stream: InputStream) {
-        val project = ProjectManager.getInstance().openProjects.first()
         val mgr = PsiManager.getInstance(project)
         val dataInputStream = DataInputStream(stream)
         reset()
-        rootNS = Namespace("root", null, mgr, false)
+        myRootNS = Namespace("root", null, mgr, false)
         while (dataInputStream.available() > 0) {
             val fullName = dataInputStream.readUTF8()
             if (fullName.isEmpty())
@@ -206,42 +210,55 @@ class UnityShortNamesManager : LuaShortNamesManager() {
 
     private fun createType(type: String, baseType: String?, mgr: PsiManager): UnityClass {
         val nsParts = type.split('.')
-        var prev: Namespace? = rootNS
+        var prev: Namespace? = myRootNS
         for (i in 0 until nsParts.size - 1) {
             val ns = nsParts[i]
             prev = prev?.getOrPut(ns)
             if (prev != null)
-                classMap[prev.fullName] = prev
+                myClassMap[prev.fullName] = prev
         }
 
         //class
         val aClass = UnityClass(nsParts.last(), type, baseType, prev, mgr)
-        classList.add(aClass)
-        classMap[type] = aClass
+        myClassList.add(aClass)
+        myClassMap[type] = aClass
         prev?.addMember(aClass)
 
         return aClass
     }
 
+    protected open fun onParseLibrary() {
+    }
+
+    protected fun stop() {
+        close()
+        reset()
+        myServer?.close()
+        myServer = null
+    }
+
+    protected fun close() {
+        myClient?.close()
+        myClient = null
+    }
+
     private fun onClose() {
+        // println("-- closed")
+        myClient = null
         reset()
     }
 
     private fun reset() {
-        rootNS = null
-        classMap.clear()
-        classList.clear()
+        myRootNS = null
+        myClassMap.clear()
+        myClassList.clear()
     }
 
     private fun findClass(name: String): NsMember? {
-        return classMap[name]
+        return myClassMap[name]
     }
 
     override fun findClass(name: String, context: SearchContext): LuaClass? {
-        return findClass(name)
-    }
-
-    override fun findClass(name: String, project: Project, scope: GlobalSearchScope): LuaClass? {
         return findClass(name)
     }
 
@@ -251,30 +268,30 @@ class UnityShortNamesManager : LuaShortNamesManager() {
     }
 
     override fun processAllClassNames(project: Project, processor: Processor<String>): Boolean {
-        for (clazz in classList) {
+        for (clazz in myClassList) {
             if (!processor.process(clazz.fullName))
                 return false
         }
         return true
     }
 
-    override fun processClassesWithName(name: String, project: Project, scope: GlobalSearchScope, processor: Processor<LuaClass>): Boolean {
-        return findClass(name, project, scope)?.let { processor.process(it) } ?: true
+    override fun processClassesWithName(name: String, context: SearchContext, processor: Processor<LuaClass>): Boolean {
+        return findClass(name, context)?.let { processor.process(it) } ?: true
     }
 
     private fun isRoot(type: String): Boolean {
         return type == "_G" || type == "CS" || type == "\$CS"
     }
 
-    override fun getClassMembers(clazzName: String, project: Project, scope: GlobalSearchScope): MutableCollection<LuaClassMember> {
-        val clazz = if (isRoot(clazzName)) rootNS else findClass(clazzName)
+    override fun getClassMembers(clazzName: String, context: SearchContext): Collection<LuaClassMember> {
+        val clazz = if (isRoot(clazzName)) myRootNS else findClass(clazzName)
         if (clazz != null)
             return clazz.members
-        return mutableListOf()
+        return emptyList()
     }
 
     private fun processAllMembers(type: String, fieldName: String, context: SearchContext, processor: Processor<LuaClassMember>, deep: Boolean = true): Boolean {
-        val clazz = (if (isRoot(type)) rootNS else findClass(type)) ?: return true
+        val clazz = (if (isRoot(type)) myRootNS else findClass(type)) ?: return true
         val continueProcess = ContainerUtil.process(clazz.members.filter { it.name == fieldName }, processor)
         if (!continueProcess)
             return false
@@ -343,7 +360,7 @@ private class UnityClass(
         mg: PsiManager
 ) : NsMember(className, parent, mg) {
 
-    private val ty:ITyClass by lazy { TyUnityClass(this) }
+    private val ty: ITyClass by lazy { TyUnityClass(this) }
 
     override val type: ITyClass
         get() = ty
@@ -420,9 +437,10 @@ private class Namespace(
     private val myMembers = mutableMapOf<String, Namespace>()
     private val myClasses = mutableListOf<UnityClass>()
 
-    val fullName: String get() {
-        return if (parent == null || !parent.isValidate) typeName else "${parent.fullName}.$typeName"
-    }
+    val fullName: String
+        get() {
+            return if (parent == null || !parent.isValidate) typeName else "${parent.fullName}.$typeName"
+        }
 
     fun addMember(ns: String): Namespace {
         val member = Namespace(ns, this, myManager, true)
