@@ -19,7 +19,7 @@ package com.tang.intellij.lua.debugger.unity
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.configurations.ConfigurationType
 import com.intellij.execution.configurations.ConfigurationTypeUtil
-import com.tang.intellij.lua.lang.LuaIcons
+import com.tang.intellij.lua.UnityIcons
 
 import javax.swing.*
 
@@ -40,7 +40,7 @@ class LuaUnityConfigurationType : ConfigurationType {
     }
 
     override fun getIcon(): Icon {
-        return LuaIcons.UNITY
+        return UnityIcons.UNITY
     }
 
     override fun getId(): String {

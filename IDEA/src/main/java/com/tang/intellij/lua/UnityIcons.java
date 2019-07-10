@@ -14,20 +14,12 @@
  * limitations under the License.
  */
 
-package com.tang.intellij.lua.unity
+package com.tang.intellij.lua;
 
-import com.intellij.ide.IconProvider
-import com.intellij.psi.PsiDirectory
-import com.intellij.psi.PsiElement
-import com.tang.intellij.lua.UnityIcons
-import com.tang.intellij.lua.unity.vfs.NetFileSystem
-import javax.swing.Icon
+import com.intellij.openapi.util.IconLoader;
 
-class NetDirectoryIconProvider : IconProvider() {
-    override fun getIcon(element: PsiElement, flags: Int): Icon? {
-        if (element is PsiDirectory && element.virtualFile.fileSystem is NetFileSystem) {
-            return UnityIcons.UNITY
-        }
-        return null
-    }
+import javax.swing.*;
+
+public class UnityIcons {
+    public static final Icon UNITY = IconLoader.getIcon("/icons/Unity.png");
 }

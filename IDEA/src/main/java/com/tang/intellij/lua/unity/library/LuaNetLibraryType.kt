@@ -28,7 +28,7 @@ import com.intellij.openapi.roots.libraries.ui.LibraryPropertiesEditor
 import com.intellij.openapi.roots.ui.configuration.libraryEditor.LibraryEditor
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.tang.intellij.lua.lang.LuaIcons
+import com.tang.intellij.lua.UnityIcons
 import javax.swing.Icon
 import javax.swing.JComponent
 
@@ -56,5 +56,5 @@ class LuaNetLibraryType : LibraryType<DummyLibraryProperties>(LuaNetLibraryKind.
 
     override fun getCreateActionName() = "Lua Net Library"
 
-    override fun getIcon(properties: DummyLibraryProperties?): Icon = LuaIcons.UNITY
+    override fun getIcon(properties: DummyLibraryProperties?): Icon = UnityIcons.UNITY
 }

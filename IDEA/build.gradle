@@ -24,6 +24,7 @@ dependencies {
 }
 
 intellij {
+    pluginName 'EmmyLua-Unity'
     type 'IU'
     updateSinceUntilBuild false
     downloadSources false
