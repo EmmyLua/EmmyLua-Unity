@@ -340,6 +340,8 @@ private class UnityClassMember(
         get() = Visibility.PUBLIC
     override val isDeprecated: Boolean
         get() = false
+    override val worth: Int
+        get() = LuaClassMember.WORTH_DOC
 }
 
 private class TyUnityClass(val clazz: UnityClass) : TyClass(clazz.fullName, clazz.name, clazz.baseClassName) {
