@@ -19,6 +19,11 @@ plugins {
     id "org.jetbrains.kotlin.jvm" version "1.4.20"
 }
 
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
 dependencies {
     compile fileTree(dir: "libs", includes: ["*.jar"])
     // compileOnly fileTree(dir: "libs-api", includes: ["*.jar"])
