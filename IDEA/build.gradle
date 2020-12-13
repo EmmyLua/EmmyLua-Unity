@@ -21,7 +21,7 @@ plugins {
 
 dependencies {
     compile fileTree(dir: "libs", includes: ["*.jar"])
-    compileOnly fileTree(dir: "libs-api", includes: ["*.jar"])
+    // compileOnly fileTree(dir: "libs-api", includes: ["*.jar"])
 }
 
 intellij {
@@ -30,6 +30,6 @@ intellij {
     updateSinceUntilBuild false
     downloadSources false
     version = "IC-202.6397.94"
-    localPath System.env["IDEA_HOME_202"]
-//    plugins 'com.tang:1.2.10-IDEA182'
+    localPath System.getenv("IDEA_HOME_202")
+    plugins ['com.tang:1.3.5.185-IDEA203']
 }
