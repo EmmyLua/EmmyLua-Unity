@@ -4,7 +4,7 @@
     <version>1.0.0</version>
     <vendor email="love.tangzx@qq.com">tangzx</vendor>
 
-    <description><![CDATA[]]></description>
+    <description><![CDATA[EmmyLua Unity 插件，在Lua中提供Unity3D C#端代码提示等功能]]></description>
 
     <change-notes><![CDATA[]]></change-notes>
 
@@ -20,8 +20,6 @@
         <iconProvider implementation="com.tang.intellij.lua.unity.NetDirectoryIconProvider" order="before javaDirectory"/>
 
         <!-- runner & debugger -->
-        <programRunner implementation="com.tang.intellij.lua.debugger.unity.LuaUnityDebuggerRunner"/>
-        <configurationType implementation="com.tang.intellij.lua.debugger.unity.LuaUnityConfigurationType"/>
 
         <applicationService serviceImplementation="com.tang.intellij.lua.unity.UnitySettings"/>
 
