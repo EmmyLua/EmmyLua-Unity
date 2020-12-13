@@ -18,7 +18,6 @@ package com.tang.intellij.lua.unity;
 
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.SearchableConfigurable;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,7 +42,6 @@ public class UnitySettingsPanel implements SearchableConfigurable, Configurable.
         return "UnitySettingsPanel";
     }
 
-    @Nls(capitalization = Nls.Capitalization.Title)
     @Override
     public String getDisplayName() {
         return "Unity Settings";

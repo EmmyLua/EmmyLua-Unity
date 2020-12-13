@@ -375,6 +375,9 @@ private class UnityClass(
         val member = UnityClassMember(name, type, this, manager)
         members.add(member)
     }
+
+    override val worth: Int
+        get() = LuaClassMember.WORTH_DOC
 }
 
 private abstract class NsMember(
@@ -464,6 +467,9 @@ private class Namespace(
 
     override val type: ITyClass
         get() = myType
+
+    override val worth: Int
+        get() = LuaClassMember.WORTH_DOC
 
     override fun toString(): String {
         return "namespace: $fullName"
