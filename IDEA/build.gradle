@@ -26,7 +26,15 @@ repositories {
 
 dependencies {
     compile fileTree(dir: "libs", includes: ["*.jar"])
-    // compileOnly fileTree(dir: "libs-api", includes: ["*.jar"])
+}
+
+// Appveyor CI
+if (System.getenv('APPVEYOR') != null) {
+    if (System.getenv('APPVEYOR_REPO_TAG_NAME') != null) {
+        version = System.getenv('APPVEYOR_REPO_TAG_NAME')
+    } else {
+        version = System.getenv('APPVEYOR_BUILD_VERSION')
+    }
 }
 
 intellij {
